@@ -5,3 +5,4 @@ build/
 *.o
 *.log
 .node_gyp/
+prebuilds/

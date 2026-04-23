@@ -6,19 +6,32 @@
   "types": "lib/index.d.ts",
   "gypfile": true,
   "scripts": {
-    "install": "node-gyp rebuild || echo 'Native build failed, falling back to in-process mode'",
+    "install": "prebuild-install --runtime napi || node-gyp rebuild || echo 'All build methods failed, using fallback'",
+    "prebuild": "prebuildify --napi --strip",
     "build": "node-gyp rebuild",
     "test": "node test/test.js",
     "test:all": "node test/test.js && node test/test-cross-process.js"
   },
-  "keywords": ["shared-memory", "shm", "mmap", "ipc", "cross-process", "native", "napi", "atomics", "SharedArrayBuffer"],
+  "keywords": [
+    "shared-memory",
+    "shm",
+    "mmap",
+    "ipc",
+    "cross-process",
+    "native",
+    "napi",
+    "atomics",
+    "SharedArrayBuffer"
+  ],
   "author": "kedemd",
   "license": "MIT",
   "dependencies": {
-    "node-addon-api": "^8.0.0"
+    "node-addon-api": "^8.0.0",
+    "prebuild-install": "^7.1.3"
   },
   "devDependencies": {
-    "node-gyp": "^10.0.0"
+    "node-gyp": "^10.0.0",
+    "prebuildify": "^6.0.1"
   },
   "engines": {
     "node": ">=18.0.0"
