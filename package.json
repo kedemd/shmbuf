@@ -8,7 +8,8 @@
   "scripts": {
     "install": "node-gyp rebuild || echo 'Native build failed, falling back to in-process mode'",
     "build": "node-gyp rebuild",
-    "test": "node test/test.js"
+    "test": "node test/test.js",
+    "test:all": "node test/test.js && node test/test-cross-process.js"
   },
   "keywords": ["shared-memory", "shm", "mmap", "ipc", "cross-process", "native", "napi", "atomics", "SharedArrayBuffer"],
   "author": "kedemd",
