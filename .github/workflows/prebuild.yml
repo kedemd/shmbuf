@@ -18,17 +18,17 @@ jobs:
           node-version: '20'
       - run: npm ci
       - run: npx prebuildify --napi --strip
+      - run: cp prebuilds/linux-x64/shmbuf.node prebuilds/shmbuf-linux-x64.node
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
         with:
-          files: prebuilds/**
+          files: prebuilds/shmbuf-linux-x64.node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'workflow_dispatch'
         with:
           name: prebuild-linux-x64
-          path: prebuilds/**
+          path: prebuilds/shmbuf-linux-x64.node
           retention-days: 7
 
   prebuild-linux-arm64:
@@ -44,17 +44,17 @@ jobs:
         env:
           CC: aarch64-linux-gnu-gcc
           CXX: aarch64-linux-gnu-g++
+      - run: cp prebuilds/linux-arm64/shmbuf.node prebuilds/shmbuf-linux-arm64.node
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
         with:
-          files: prebuilds/**
+          files: prebuilds/shmbuf-linux-arm64.node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'workflow_dispatch'
         with:
           name: prebuild-linux-arm64
-          path: prebuilds/**
+          path: prebuilds/shmbuf-linux-arm64.node
           retention-days: 7
 
   prebuild-darwin-x64:
@@ -66,17 +66,17 @@ jobs:
           node-version: '20'
       - run: npm ci
       - run: npx prebuildify --napi --strip
+      - run: cp prebuilds/darwin-x64/shmbuf.node prebuilds/shmbuf-darwin-x64.node
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
         with:
-          files: prebuilds/**
+          files: prebuilds/shmbuf-darwin-x64.node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'workflow_dispatch'
         with:
           name: prebuild-darwin-x64
-          path: prebuilds/**
+          path: prebuilds/shmbuf-darwin-x64.node
           retention-days: 7
 
   prebuild-darwin-arm64:
@@ -88,17 +88,17 @@ jobs:
           node-version: '20'
       - run: npm ci
       - run: npx prebuildify --napi --strip
+      - run: cp prebuilds/darwin-arm64/shmbuf.node prebuilds/shmbuf-darwin-arm64.node
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
         with:
-          files: prebuilds/**
+          files: prebuilds/shmbuf-darwin-arm64.node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'workflow_dispatch'
         with:
           name: prebuild-darwin-arm64
-          path: prebuilds/**
+          path: prebuilds/shmbuf-darwin-arm64.node
           retention-days: 7
 
   prebuild-win32-x64:
@@ -110,15 +110,16 @@ jobs:
           node-version: '20'
       - run: npm ci
       - run: npx prebuildify --napi --strip
+      - run: copy prebuilds\win32-x64\shmbuf.node prebuilds\shmbuf-win32-x64.node
+        shell: cmd
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
         with:
-          files: prebuilds/**
+          files: prebuilds/shmbuf-win32-x64.node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'workflow_dispatch'
         with:
           name: prebuild-win32-x64
-          path: prebuilds/**
+          path: prebuilds/shmbuf-win32-x64.node
           retention-days: 7

@@ -44,5 +44,9 @@
     "get-include-dir.js",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "prebuild-install": {
+    "host": "https://github.com/kedemd/shmbuf/releases/download",
+    "asset": "shmbuf-{platform}-{arch}.node"
+  }
 }
