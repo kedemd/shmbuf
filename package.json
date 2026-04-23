@@ -7,7 +7,7 @@
   "gypfile": true,
   "scripts": {
     "install": "prebuild-install --runtime napi || node-gyp rebuild || echo 'All build methods failed, using fallback'",
-    "prebuild": "prebuildify --napi --strip",
+    "prebuild": "npx prebuildify --napi --strip",
     "build": "node-gyp rebuild",
     "test": "node test/test-shmbuf.js",
     "test:all": "node test/test-shmbuf.js"
