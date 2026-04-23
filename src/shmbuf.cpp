@@ -6,30 +6,60 @@
 
 #ifdef _WIN32
   #include <windows.h>
-  static std::unordered_map<std::string, HANDLE> g_handles;
 #else
   #include <sys/mman.h>
   #include <sys/stat.h>
   #include <fcntl.h>
   #include <unistd.h>
-  struct MappedRegion { void* ptr; size_t size; };
-  static std::unordered_map<std::string, MappedRegion> g_regions;
 #endif
 
-static napi_value MakeSharedArrayBuffer(Napi::Env env, void* ptr, size_t size) {
-  v8::Isolate* isolate = v8::Isolate::GetCurrent();
-  // Create a backing store that does NOT free memory on GC —
-  // we manage the lifetime ourselves in Close/Unlink.
-  auto backing = v8::SharedArrayBuffer::NewBackingStore(
-      ptr, size,
-      [](void*, size_t, void*) {},  // no-op deleter
-      nullptr
-  );
-  v8::Local<v8::SharedArrayBuffer> sab =
-      v8::SharedArrayBuffer::New(isolate, std::move(backing));
-  return reinterpret_cast<napi_value>(*sab);
+// ── Deleter context ───────────────────────────────────────────────────────────
+struct DeleterCtx {
+  void*  ptr;
+  size_t size;
+#ifdef _WIN32
+  HANDLE handle;
+#endif
+};
+
+static void SabDeleter(void* /*data*/, size_t /*len*/, void* hint) {
+  auto* ctx = static_cast<DeleterCtx*>(hint);
+#ifdef _WIN32
+  UnmapViewOfFile(ctx->ptr);
+  CloseHandle(ctx->handle);
+#else
+  munmap(ctx->ptr, ctx->size);
+#endif
+  delete ctx;
 }
 
+// ── Region tracking (for close/unlink) ───────────────────────────────────────
+#ifdef _WIN32
+struct Region { void* ptr; size_t size; HANDLE handle; };
+#else
+struct Region { void* ptr; size_t size; };
+#endif
+static std::unordered_map<std::string, Region> g_regions;
+
+// ── Helper: wrap a raw pointer as a SharedArrayBuffer ────────────────────────
+// Uses napi_create_external_arraybuffer then reinterprets as SAB.
+// The backing store owns the memory — freed by SabDeleter when V8 GCs the SAB.
+static Napi::Value WrapAsSharedArrayBuffer(Napi::Env env, void* ptr, size_t size, DeleterCtx* ctx) {
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::HandleScope scope(isolate);
+
+  auto backing = v8::SharedArrayBuffer::NewBackingStore(
+      ptr, size, SabDeleter, static_cast<void*>(ctx));
+
+  v8::Local<v8::SharedArrayBuffer> sab =
+      v8::SharedArrayBuffer::New(isolate, std::move(backing));
+
+  // Convert v8::Local to napi_value via the v8::Value base class
+  return Napi::Value(env, reinterpret_cast<napi_value>(
+      static_cast<v8::Value*>(*sab)));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 Napi::Value Open(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[0].IsString() || !info[1].IsNumber()) {
@@ -42,41 +72,40 @@ Napi::Value Open(const Napi::CallbackInfo& info) {
     Napi::RangeError::New(env, "size must be between 1 and 67108864 bytes").ThrowAsJavaScriptException();
     return env.Undefined();
   }
+
   void* ptr = nullptr;
+  auto* ctx = new DeleterCtx();
+  ctx->size = size;
+
 #ifdef _WIN32
   HANDLE h = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, (DWORD)size, name.c_str());
-  if (!h) {
-    Napi::Error::New(env, "CreateFileMapping failed: " + std::to_string(GetLastError())).ThrowAsJavaScriptException();
-    return env.Undefined();
-  }
+  if (!h) { delete ctx; Napi::Error::New(env, "CreateFileMapping failed: " + std::to_string(GetLastError())).ThrowAsJavaScriptException(); return env.Undefined(); }
   ptr = MapViewOfFile(h, FILE_MAP_ALL_ACCESS, 0, 0, size);
-  if (!ptr) {
-    CloseHandle(h);
-    Napi::Error::New(env, "MapViewOfFile failed: " + std::to_string(GetLastError())).ThrowAsJavaScriptException();
-    return env.Undefined();
-  }
-  g_handles[name] = h;
+  if (!ptr) { CloseHandle(h); delete ctx; Napi::Error::New(env, "MapViewOfFile failed: " + std::to_string(GetLastError())).ThrowAsJavaScriptException(); return env.Undefined(); }
+  ctx->ptr = ptr; ctx->handle = h;
+  g_regions[name] = { ptr, size, h };
 #else
-  int fd = shm_open(name.c_str(), O_CREAT | O_RDWR, 0600);
-  if (fd < 0) {
-    Napi::Error::New(env, std::string("shm_open failed: ") + strerror(errno)).ThrowAsJavaScriptException();
-    return env.Undefined();
-  }
-  if (ftruncate(fd, (off_t)size) < 0) {
-    close(fd);
-    shm_unlink(name.c_str());
-    Napi::Error::New(env, std::string("ftruncate failed: ") + strerror(errno)).ThrowAsJavaScriptException();
-    return env.Undefined();
+  int fd = shm_open(name.c_str(), O_CREAT | O_EXCL | O_RDWR, 0600);
+  if (fd >= 0) {
+    if (ftruncate(fd, (off_t)size) < 0) {
+      int e = errno; close(fd); shm_unlink(name.c_str()); delete ctx;
+      Napi::Error::New(env, std::string("ftruncate failed: ") + strerror(e)).ThrowAsJavaScriptException();
+      return env.Undefined();
+    }
+  } else if (errno == EEXIST) {
+    fd = shm_open(name.c_str(), O_RDWR, 0600);
+    if (fd < 0) { delete ctx; Napi::Error::New(env, std::string("shm_open (existing) failed: ") + strerror(errno)).ThrowAsJavaScriptException(); return env.Undefined(); }
+  } else {
+    delete ctx; Napi::Error::New(env, std::string("shm_open failed: ") + strerror(errno)).ThrowAsJavaScriptException(); return env.Undefined();
   }
   ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   close(fd);
-  if (ptr == MAP_FAILED) {
-    Napi::Error::New(env, std::string("mmap failed: ") + strerror(errno)).ThrowAsJavaScriptException();
-    return env.Undefined();
-  }
+  if (ptr == MAP_FAILED) { delete ctx; Napi::Error::New(env, std::string("mmap failed: ") + strerror(errno)).ThrowAsJavaScriptException(); return env.Undefined(); }
+  ctx->ptr = ptr;
   g_regions[name] = { ptr, size };
 #endif
-  return Napi::Value(env, MakeSharedArrayBuffer(env, ptr, size));
+
+  return WrapAsSharedArrayBuffer(env, ptr, size, ctx);
 }
 
 Napi::Value Close(const Napi::CallbackInfo& info) {
@@ -85,14 +114,8 @@ Napi::Value Close(const Napi::CallbackInfo& info) {
     Napi::TypeError::New(env, "close(name: string)").ThrowAsJavaScriptException();
     return env.Undefined();
   }
-  std::string name = info[0].As<Napi::String>().Utf8Value();
-#ifdef _WIN32
-  auto it = g_handles.find(name);
-  if (it != g_handles.end()) { CloseHandle(it->second); g_handles.erase(it); }
-#else
-  auto it = g_regions.find(name);
-  if (it != g_regions.end()) { munmap(it->second.ptr, it->second.size); g_regions.erase(it); }
-#endif
+  // Remove tracking — actual munmap/CloseHandle happens in SabDeleter when V8 GCs the SAB
+  g_regions.erase(info[0].As<Napi::String>().Utf8Value());
   return env.Undefined();
 }
 
@@ -102,8 +125,9 @@ Napi::Value Unlink(const Napi::CallbackInfo& info) {
     Napi::TypeError::New(env, "unlink(name: string)").ThrowAsJavaScriptException();
     return env.Undefined();
   }
-#ifndef _WIN32
   std::string name = info[0].As<Napi::String>().Utf8Value();
+  g_regions.erase(name);
+#ifndef _WIN32
   shm_unlink(name.c_str());
 #endif
   return env.Undefined();

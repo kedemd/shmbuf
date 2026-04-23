@@ -3,7 +3,7 @@
     "target_name": "shmbuf",
     "sources": ["src/shmbuf.cpp"],
     "include_dirs": [
-      "<!@(node -p \"require('node-addon-api').include_dir.replace(/\\\\/g,'\\\\\\\\')\")"
+      "<!@(node get-include-dir.js)"
     ],
     "cflags!": ["-fno-exceptions"],
     "cflags_cc!": ["-fno-exceptions"],
