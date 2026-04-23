@@ -1,0 +1,7 @@
+node_modules/
+build/
+*.node
+*.a
+*.o
+*.log
+.node_gyp/

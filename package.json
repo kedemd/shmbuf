@@ -1,0 +1,25 @@
+{
+  "name": "shmbuf",
+  "version": "0.1.0",
+  "description": "Cross-platform shared memory for Node.js — returns a SharedArrayBuffer backed by OS shared memory, usable with Atomics across processes",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "gypfile": true,
+  "scripts": {
+    "install": "node-gyp rebuild || echo 'Native build failed, falling back to in-process mode'",
+    "build": "node-gyp rebuild",
+    "test": "node test/test.js"
+  },
+  "keywords": ["shared-memory", "shm", "mmap", "ipc", "cross-process", "native", "napi", "atomics", "SharedArrayBuffer"],
+  "author": "kedemd",
+  "license": "MIT",
+  "dependencies": {
+    "node-addon-api": "^8.0.0"
+  },
+  "devDependencies": {
+    "node-gyp": "^10.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
