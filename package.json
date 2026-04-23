@@ -35,5 +35,14 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "files": [
+    "src/",
+    "lib/",
+    "test/",
+    "binding.gyp",
+    "get-include-dir.js",
+    "README.md",
+    "LICENSE"
+  ]
 }
